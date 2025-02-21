@@ -1,32 +1,46 @@
 import { useEffect, useRef, useCallback, useState } from 'react'
-import { WS_EVENTS } from '../lib/wsEvents'
 
 export function useWebSocket(roomId: string, token: string | null) {
   const wsRef = useRef<WebSocket | null>(null)
   const [isConnected, setIsConnected] = useState(false)
-  const handlersRef = useRef<Map<string, ((data: any) => void)[]>>(new Map())
+  const handlersRef = useRef<Map<string, Set<(data: any) => void>>>(new Map())
+  const seenIds = useRef<Set<string>>(new Set())
+  const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const unmounted = useRef(false)
 
   const connect = useCallback(() => {
-    if (!token || !roomId) return
+    if (!token || !roomId || unmounted.current) return
     const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws'
     const ws = new WebSocket(`${protocol}://${window.location.host}/api/v1/ws/${roomId}?token=${token}`)
     wsRef.current = ws
-    ws.onopen = () => setIsConnected(true)
+
+    ws.onopen = () => { if (!unmounted.current) setIsConnected(true) }
     ws.onclose = () => {
+      if (unmounted.current) return
       setIsConnected(false)
-      setTimeout(connect, 3000)
+      reconnectTimer.current = setTimeout(connect, 3000)
     }
     ws.onerror = () => ws.close()
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data)
-      const handlers = handlersRef.current.get(data.type) ?? []
-      handlers.forEach(h => h(data))
+      if (data.message?.id) {
+        if (seenIds.current.has(data.message.id)) return
+        seenIds.current.add(data.message.id)
+      }
+      const handlers = handlersRef.current.get(data.type)
+      handlers?.forEach(h => h(data))
     }
   }, [roomId, token])
 
   useEffect(() => {
+    unmounted.current = false
+    seenIds.current.clear()
     connect()
-    return () => { wsRef.current?.close() }
+    return () => {
+      unmounted.current = true
+      if (reconnectTimer.current) clearTimeout(reconnectTimer.current)
+      wsRef.current?.close()
+    }
   }, [connect])
 
   const send = useCallback((type: string, payload: object = {}) => {
@@ -36,11 +50,9 @@ export function useWebSocket(roomId: string, token: string | null) {
   }, [])
 
   const on = useCallback((type: string, handler: (data: any) => void) => {
-    const list = handlersRef.current.get(type) ?? []
-    handlersRef.current.set(type, [...list, handler])
-    return () => {
-      handlersRef.current.set(type, (handlersRef.current.get(type) ?? []).filter(h => h !== handler))
-    }
+    if (!handlersRef.current.has(type)) handlersRef.current.set(type, new Set())
+    handlersRef.current.get(type)!.add(handler)
+    return () => { handlersRef.current.get(type)?.delete(handler) }
   }, [])
 
   return { send, on, isConnected }
