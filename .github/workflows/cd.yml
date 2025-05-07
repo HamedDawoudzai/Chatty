@@ -1,0 +1,19 @@
+name: CD
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build backend image
+        run: docker build -f backend/Dockerfile -t chatty-backend:${{ github.sha }} .
+      - name: Build frontend image
+        run: docker build -f frontend/Dockerfile -t chatty-frontend:${{ github.sha }} .
+      - name: Deploy
+        run: echo "Deploy step — configure for your platform (Railway, Fly, etc.)"
