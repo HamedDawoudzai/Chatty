@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import field_validator
 
 
 class Settings(BaseSettings):
@@ -12,6 +13,21 @@ class Settings(BaseSettings):
     APP_ENV: str = "development"
     DEBUG: bool = True
     ALLOWED_ORIGINS: list[str] = ["http://localhost:5173"]
+    STORAGE_BACKEND: str = "local"
+    AWS_ACCESS_KEY_ID: str = ""
+    AWS_SECRET_ACCESS_KEY: str = ""
+    AWS_BUCKET_NAME: str = "chatty-uploads"
+    AWS_REGION: str = "us-east-1"
+    LOCAL_UPLOAD_DIR: str = "./uploads"
+    SENTRY_DSN: str = ""
+    MAX_FILE_SIZE_MB: int = 10
+
+    @field_validator("ALLOWED_ORIGINS", mode="before")
+    @classmethod
+    def split_origins(cls, v):
+        if isinstance(v, str):
+            return [o.strip() for o in v.split(",")]
+        return v
 
 
 settings = Settings()
