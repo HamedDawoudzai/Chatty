@@ -38,3 +38,4 @@ Thumbs.db
 *.key
 secrets/
 build_history.py
+build_history.py
