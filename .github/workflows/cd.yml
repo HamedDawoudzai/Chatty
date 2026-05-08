@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Build backend image
         run: docker build -f backend/Dockerfile -t chatty-backend:${{ github.sha }} .
       - name: Build frontend image
